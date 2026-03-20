@@ -1,0 +1,9 @@
+options.clearCache.pages = 1
+
+TCEMAIN.permissions {
+    user = show,edit,delete,new
+    group = show,edit,new
+}
+
+# Beispiel Einschränkung
+TCEFORM.tt_content.layout.disabled = 1

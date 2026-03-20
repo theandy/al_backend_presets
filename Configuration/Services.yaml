@@ -1,0 +1,4 @@
+services:
+  Vendor\AlBackendPresets\Command\SetupBackendCommand:
+    tags:
+      - name: 'console.command'
