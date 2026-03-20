@@ -36,11 +36,25 @@ class SetupBackendCommand extends Command
 
         $connection->insert('be_groups', [
             'title' => $groupName,
+
+            // Tabellenzugriff
             'tables_select' => 'pages,tt_content,sys_file',
+
+            // Feldrechte
             'non_exclude_fields' => 'pages:*,tt_content:*',
+
+            // Pflicht für Rechtehandling
             'explicit_allowdeny' => 1,
-            'allowed_modules' => 'web_layout,web_list,file_Filelist',
+
+            // Seitentypen
             'pagetypes_select' => '1',
+
+            // TYPO3 12: Module über TSconfig
+            'tsconfig' => '
+mod.web_layout.enable = 1
+mod.web_list.enable = 1
+mod.file.enable = 1
+',
         ]);
 
         $output->writeln('Gruppe "Editor" wurde erstellt.');
