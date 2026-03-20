@@ -1,0 +1,15 @@
+{
+  "name": "al/backend-presets",
+  "type": "typo3-cms-extension",
+  "description": "Backend roles & presets",
+  "autoload": {
+    "psr-4": {
+      "Vendor\\AlBackendPresets\\": "Classes/"
+    }
+  },
+  "extra": {
+    "typo3/cms": {
+      "extension-key": "al_backend_presets"
+    }
+  }
+}
