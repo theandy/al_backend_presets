@@ -4,6 +4,7 @@ namespace Vendor\AlBackendPresets\Command;
 
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Crypto\PasswordHashing\PasswordHashFactory;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -13,51 +14,95 @@ class SetupBackendCommand extends Command
     protected function configure()
     {
         $this->setName('albackendpresets:setup')
-            ->setDescription('Erstellt Backend-Gruppen (Editor)');
+            ->setDescription('Erstellt Backend-Gruppe + User');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $connection = GeneralUtility::makeInstance(ConnectionPool::class)
-            ->getConnectionForTable('be_groups');
+        $connectionPool = GeneralUtility::makeInstance(ConnectionPool::class);
+
+        $groupConnection = $connectionPool->getConnectionForTable('be_groups');
+        $userConnection = $connectionPool->getConnectionForTable('be_users');
 
         $groupName = 'Editor';
 
-        $existing = $connection->select(
+        // =========================
+        // Gruppe prüfen / erstellen
+        // =========================
+        $groupUid = $groupConnection->select(
             ['uid'],
             'be_groups',
             ['title' => $groupName]
         )->fetchOne();
 
-        if ($existing) {
+        if (!$groupUid) {
+            $groupConnection->insert('be_groups', [
+                'title' => $groupName,
+
+                // ✅ Module (entscheidend!)
+                'groupMods' => 'web_layout,web_list,file',
+
+                // Tabellenzugriff
+                'tables_select' => 'pages,tt_content,sys_file',
+
+                // Feldrechte
+                'non_exclude_fields' => 'pages:*,tt_content:*',
+
+                // Rechte aktivieren
+                'explicit_allowdeny' => 1,
+
+                // Seitentypen
+                'pagetypes_select' => '1',
+
+                // Optionales TSconfig (nur Verhalten!)
+                'tsconfig' => '
+options.clearCache.pages = 1
+',
+            ]);
+
+            $groupUid = $groupConnection->lastInsertId();
+            $output->writeln('Gruppe "Editor" wurde erstellt.');
+        } else {
             $output->writeln('Gruppe existiert bereits.');
+        }
+
+        // =========================
+        // User prüfen / erstellen
+        // =========================
+        $username = 'editor';
+
+        $existingUser = $userConnection->select(
+            ['uid'],
+            'be_users',
+            ['username' => $username]
+        )->fetchOne();
+
+        if ($existingUser) {
+            $output->writeln('User "editor" existiert bereits.');
             return Command::SUCCESS;
         }
 
-        $connection->insert('be_groups', [
-            'title' => $groupName,
+        // Passwort hashen
+        $hashInstance = GeneralUtility::makeInstance(PasswordHashFactory::class)
+            ->getDefaultHashInstance('BE');
 
-            // Tabellenzugriff
-            'tables_select' => 'pages,tt_content,sys_file',
+        $passwordHash = $hashInstance->getHashedPassword('editor123');
 
-            // Feldrechte
-            'non_exclude_fields' => 'pages:*,tt_content:*',
+        // User anlegen
+        $userConnection->insert('be_users', [
+            'username' => $username,
+            'password' => $passwordHash,
+            'admin' => 0,
+            'usergroup' => $groupUid,
+            'realName' => 'Editor User',
+            'email' => 'editor@example.com',
+            'disable' => 0,
 
-            // Pflicht für Rechtehandling
-            'explicit_allowdeny' => 1,
-
-            // Seitentypen
-            'pagetypes_select' => '1',
-
-            // TYPO3 12: Module über TSconfig
-            'tsconfig' => '
-mod.web_layout.enable = 1
-mod.web_list.enable = 1
-mod.file.enable = 1
-',
+            // Optional sinnvoll:
+            'db_mountpoints' => '1',
         ]);
 
-        $output->writeln('Gruppe "Editor" wurde erstellt.');
+        $output->writeln('User "editor" wurde erstellt (Passwort: editor123).');
 
         return Command::SUCCESS;
     }
