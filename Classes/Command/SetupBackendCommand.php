@@ -46,10 +46,15 @@ class SetupBackendCommand extends Command
                 'tables_select' => 'pages,sys_file_reference,tt_content',
 
                 // Feldrechte
-                'non_exclude_fields' => 'sys_file_reference:crop,sys_file_reference:title]',
+                'non_exclude_fields' => 'sys_file_reference:crop,
+                sys_file_reference:title,
+                tt_content:image_zoom,
+                tt_content:hidden',
 
                 // Rechte aktivieren
-                'explicit_allowdeny' => 1,
+                // 'explicit_allowdeny' => 1,
+
+                'explicit_allowdeny' => 'tt_content:CType:header,tt_content:CType:textmedia',
 
                 // Seitentypen
                 'pagetypes_select' => '1',
