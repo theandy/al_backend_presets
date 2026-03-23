@@ -14,7 +14,7 @@ class SetupBackendCommand extends Command
     protected function configure()
     {
         $this->setName('albackendpresets:setup')
-            ->setDescription('Erstellt Backend-Gruppe + User');
+            ->setDescription('Erstellt Rollen: Admin, Editor, Redakteur + User');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -24,97 +24,131 @@ class SetupBackendCommand extends Command
         $groupConnection = $connectionPool->getConnectionForTable('be_groups');
         $userConnection = $connectionPool->getConnectionForTable('be_users');
 
-        $groupName = 'Editor';
+        // =========================
+        // Gruppen anlegen
+        // =========================
+        $editorGroupId = $this->createGroup($groupConnection, 'Editor', [
+            'groupMods' => 'web_layout,web_list,file',
+            'tables_select' => 'pages,tt_content,sys_file',
+            'non_exclude_fields' => 'pages:*,tt_content:*',
+        ], $output);
+
+        $redakteurGroupId = $this->createGroup($groupConnection, 'Redakteur', [
+            'groupMods' => 'web_layout',
+            'tables_select' => 'pages,tt_content',
+            'non_exclude_fields' => 'pages:title,hidden;tt_content:header,bodytext',
+        ], $output);
 
         // =========================
-        // Gruppe prüfen / erstellen
+        // User erstellen
         // =========================
-        $groupUid = $groupConnection->select(
+        $this->createUser($userConnection, 'editor', 'editor123', $editorGroupId, 'Editor User', $output);
+        $this->createUser($userConnection, 'redakteur', 'redakteur123', $redakteurGroupId, 'Redakteur User', $output);
+
+        // Optional Admin User
+        $this->createAdminUser($userConnection, 'admin2', 'admin123', $output);
+
+        return Command::SUCCESS;
+    }
+
+    // =========================
+    // Gruppe erstellen
+    // =========================
+    private function createGroup($connection, string $title, array $config, OutputInterface $output): int
+    {
+        $existing = $connection->select(
             ['uid'],
             'be_groups',
-            ['title' => $groupName]
+            ['title' => $title]
         )->fetchOne();
 
-        if (!$groupUid) {
-            $groupConnection->insert('be_groups', [
-                'title' => $groupName,
-
-                // ✅ Module (entscheidend!)
-                'groupMods' => 'web_layout,web_list,media_management',
-
-                // Tabellenzugriff
-                'tables_select' => 'pages,sys_file_reference,tt_content',
-
-                // Feldrechte
-                'non_exclude_fields' => 'sys_file_reference:crop,
-                sys_file_reference:title,
-                tt_content:image_zoom,
-                tt_content:hidden',
-
-                // Rechte aktivieren
-                // 'explicit_allowdeny' => 1,
-
-                'explicit_allowdeny' => '
-                tt_content:CType:header,
-                tt_content:CType:image,
-                tt_content:CType:textmedia',
-
-                // Seitentypen
-                'pagetypes_select' => '1',
-
-                // Optionales TSconfig (nur Verhalten!)
-                'tsconfig' => '
-options.clearCache.pages = 1
-',
-
-                'description' => 'automatisch erstellt. nicht ändern.'
-
-            ]);
-
-            $groupUid = $groupConnection->lastInsertId();
-            $output->writeln('Gruppe "Editor" wurde erstellt.');
-        } else {
-            $output->writeln('Gruppe existiert bereits.');
+        if ($existing) {
+            $output->writeln("Gruppe \"$title\" existiert bereits.");
+            return (int)$existing;
         }
 
-        // =========================
-        // User prüfen / erstellen
-        // =========================
-        $username = 'editor';
+        $connection->insert('be_groups', [
+            'title' => $title,
+            'groupMods' => $config['groupMods'],
+            'tables_select' => $config['tables_select'],
+            'non_exclude_fields' => $config['non_exclude_fields'],
+            'explicit_allowdeny' => 1,
+            'pagetypes_select' => '1',
+            'tsconfig' => '
+options.clearCache.pages = 1
+',
+        ]);
 
-        $existingUser = $userConnection->select(
+        $output->writeln("Gruppe \"$title\" wurde erstellt.");
+
+        return (int)$connection->lastInsertId();
+    }
+
+    // =========================
+    // User erstellen
+    // =========================
+    private function createUser($connection, string $username, string $password, int $groupId, string $realName, OutputInterface $output): void
+    {
+        $existing = $connection->select(
             ['uid'],
             'be_users',
             ['username' => $username]
         )->fetchOne();
 
-        if ($existingUser) {
-            $output->writeln('User "editor" existiert bereits.');
-            return Command::SUCCESS;
+        if ($existing) {
+            $output->writeln("User \"$username\" existiert bereits.");
+            return;
         }
 
-        // Passwort hashen
         $hashInstance = GeneralUtility::makeInstance(PasswordHashFactory::class)
             ->getDefaultHashInstance('BE');
 
-        $passwordHash = $hashInstance->getHashedPassword('editor123');
+        $passwordHash = $hashInstance->getHashedPassword($password);
 
-        // User anlegen
-        $userConnection->insert('be_users', [
+        $connection->insert('be_users', [
             'username' => $username,
             'password' => $passwordHash,
             'admin' => 0,
-            'usergroup' => $groupUid,
-            'realName' => 'Editor User',
-            'email' => 'editor@example.com',
+            'usergroup' => $groupId,
+            'realName' => $realName,
+            'email' => $username . '@example.com',
             'disable' => 0,
-
-            // Optional sinnvoll:
             'db_mountpoints' => '1',
         ]);
 
-        $output->writeln('User "editor" wurde erstellt (Passwort: editor123).');
+        $output->writeln("User \"$username\" wurde erstellt.");
+    }
 
-        return Command::SUCCESS;
+    // =========================
+    // Admin User
+    // =========================
+    private function createAdminUser($connection, string $username, string $password, OutputInterface $output): void
+    {
+        $existing = $connection->select(
+            ['uid'],
+            'be_users',
+            ['username' => $username]
+        )->fetchOne();
+
+        if ($existing) {
+            $output->writeln("Admin \"$username\" existiert bereits.");
+            return;
+        }
+
+        $hashInstance = GeneralUtility::makeInstance(PasswordHashFactory::class)
+            ->getDefaultHashInstance('BE');
+
+        $passwordHash = $hashInstance->getHashedPassword($password);
+
+        $connection->insert('be_users', [
+            'username' => $username,
+            'password' => $passwordHash,
+            'admin' => 1,
+            'realName' => 'Admin User',
+            'email' => 'admin@example.com',
+            'disable' => 0,
+        ]);
+
+        $output->writeln("Admin \"$username\" wurde erstellt.");
     }
 }
