@@ -40,13 +40,13 @@ class SetupBackendCommand extends Command
                 'title' => $groupName,
 
                 // ✅ Module (entscheidend!)
-                'groupMods' => 'web_layout,web_list,file',
+                'groupMods' => 'web_layout,web_list,media_management',
 
                 // Tabellenzugriff
-                'tables_select' => 'pages,tt_content,sys_file',
+                'tables_select' => 'pages,sys_file_reference,tt_content',
 
                 // Feldrechte
-                'non_exclude_fields' => 'pages:*,tt_content:*',
+                'non_exclude_fields' => 'sys_file_reference:crop,sys_file_reference:title]',
 
                 // Rechte aktivieren
                 'explicit_allowdeny' => 1,
