@@ -54,7 +54,10 @@ class SetupBackendCommand extends Command
                 // Rechte aktivieren
                 // 'explicit_allowdeny' => 1,
 
-                'explicit_allowdeny' => 'tt_content:CType:header,tt_content:CType:textmedia',
+                'explicit_allowdeny' => '
+                tt_content:CType:header,
+                tt_content:CType:image,
+                tt_content:CType:textmedia',
 
                 // Seitentypen
                 'pagetypes_select' => '1',
@@ -63,6 +66,9 @@ class SetupBackendCommand extends Command
                 'tsconfig' => '
 options.clearCache.pages = 1
 ',
+
+                'description' => 'automatisch erstellt. nicht ändern.'
+
             ]);
 
             $groupUid = $groupConnection->lastInsertId();
